@@ -453,7 +453,8 @@ const Nav = {
     { id: 'ziliao',     num: '4', icon: '📈', text: '资料分析',   section: '行测' },
     { id: 'zhengzhi',   num: '5', icon: '📚', text: '政治&常识',   section: '综合' },
     { id: 'shenlun',    num: '6', icon: '✍️', text: '申论·综应',   section: '综合' },
-    { id: 'overview',   num: '7', icon: '📋', text: '全局总览',   section: '总览' }
+    { id: 'overview',   num: '7', icon: '📋', text: '全局总览',   section: '总览' },
+    { id: 'settings',   num: '⚙', icon: '⚙️', text: '设置',       section: '总览' }
   ],
 
   current: 'overview',
@@ -506,6 +507,7 @@ const Nav = {
     document.querySelector('.content').scrollTop = 0;
     // 渲染对应页面
     if (pageId === 'overview') PageRouter.renderOverview();
+    else if (pageId === 'settings') PageRouter.renderSettings();
     else PageRouter.render(pageId);
   },
 
@@ -513,6 +515,168 @@ const Nav = {
     const tasks = Store.getTasks().filter(t => !t.completed);
     const el = document.getElementById('navTaskCount');
     if (el) el.textContent = tasks.length;
+  }
+};
+
+// ============ 数据管理（导入/导出/清除）============
+const DataManager = {
+  exportData() {
+    const data = Store.get();
+    const exportObj = {
+      app: '主旋律的工作台',
+      version: '1.0.0',
+      exportDate: new Date().toISOString(),
+      data: data
+    };
+    const json = JSON.stringify(exportObj, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `主旋律工作台_备份_${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    Utils.toast('数据已导出！');
+  },
+
+  exportTasks() {
+    const data = Store.get();
+    const exportObj = {
+      app: '主旋律的工作台',
+      version: '1.0.0',
+      exportDate: new Date().toISOString(),
+      type: 'tasks_only',
+      data: { tasks: data.tasks || [] }
+    };
+    const json = JSON.stringify(exportObj, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `公考任务_备份_${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    Utils.toast('任务已导出！');
+  },
+
+  triggerImport() {
+    document.getElementById('importFileInput').click();
+  },
+
+  handleImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target.result);
+
+        // 验证格式
+        if (!imported.app || !imported.data) {
+          Utils.toast('文件格式不正确');
+          return;
+        }
+
+        // 检查是否是本应用的数据
+        if (imported.app !== '主旋律的工作台') {
+          if (!confirm('该文件可能不是主旋律工作台的数据，确定导入吗？')) return;
+        }
+
+        const importedData = imported.data;
+        const currentData = Store.get();
+        const isFullImport = !imported.type || imported.type !== 'tasks_only';
+
+        if (isFullImport) {
+          // 完整导入：合并数据
+          if (!confirm('导入将覆盖当前同类型数据，确定继续吗？\n（建议先导出当前数据备份）')) return;
+
+          if (importedData.tasks) currentData.tasks = importedData.tasks;
+          if (importedData.wrongQuestions) currentData.wrongQuestions = importedData.wrongQuestions;
+          if (importedData.favorites) currentData.favorites = importedData.favorites;
+          if (importedData.countdown) currentData.countdown = importedData.countdown;
+          if (importedData.stats) currentData.stats = importedData.stats;
+          if (importedData.monthGoal) currentData.monthGoal = importedData.monthGoal;
+          if (importedData.reciteGoal) currentData.reciteGoal = importedData.reciteGoal;
+          if (importedData.subjectGoals) currentData.subjectGoals = importedData.subjectGoals;
+        } else {
+          // 仅导入任务：合并到现有任务
+          if (importedData.tasks) {
+            const existingIds = new Set(currentData.tasks.map(t => t.id));
+            const newTasks = importedData.tasks.filter(t => !existingIds.has(t.id));
+            currentData.tasks = [...newTasks, ...currentData.tasks];
+          }
+        }
+
+        Store.save(currentData);
+        Nav.updateBadge();
+
+        const resultDiv = document.getElementById('importResult');
+        if (resultDiv) {
+          resultDiv.innerHTML = `
+            <div style="padding:12px;background:#E8F7ED;border-radius:var(--radius-s);font-size:13px;color:#4A9D62;">
+              ✅ 导入成功！共导入 ${importedData.tasks ? importedData.tasks.length : 0} 个任务
+              ${importedData.wrongQuestions ? '、' + importedData.wrongQuestions.length + ' 道错题' : ''}
+              ${importedData.favorites ? '、' + importedData.favorites.length + ' 个收藏' : ''}
+            </div>
+          `;
+        }
+        Utils.toast('数据导入成功！');
+
+        // 刷新当前页面
+        if (Nav.current === 'settings') PageRouter.renderSettings();
+        else if (Nav.current === 'overview') PageRouter.renderOverview();
+
+      } catch (err) {
+        Utils.toast('导入失败：文件格式错误');
+        console.error('Import error:', err);
+      }
+      // 重置 input 以便可以重复导入同一文件
+      event.target.value = '';
+    };
+    reader.readAsText(file);
+  },
+
+  saveMonthGoal() {
+    const val = parseInt(document.getElementById('monthGoalInput').value);
+    if (!val || val < 1) { Utils.toast('请输入有效数字'); return; }
+    const data = Store.get();
+    data.monthGoal = val;
+    Store.save(data);
+    Utils.toast('月目标已保存');
+  },
+
+  saveReciteGoal() {
+    const val = parseInt(document.getElementById('reciteGoalInput').value);
+    if (!val || val < 1) { Utils.toast('请输入有效数字'); return; }
+    const data = Store.get();
+    data.reciteGoal = val;
+    Store.save(data);
+    Utils.toast('背诵目标已保存');
+  },
+
+  clearCountdown() {
+    if (!confirm('确定要清除考试倒计时吗？')) return;
+    Store.clearCountdown();
+    Utils.toast('已清除倒计时');
+    PageRouter.renderSettings();
+  },
+
+  clearAllData() {
+    if (!confirm('⚠️ 确定要清除所有数据吗？\n\n这将删除：\n• 所有备考任务\n• 所有错题记录\n• 所有申论收藏\n• 考试倒计时\n• 学习统计数据\n\n此操作不可撤销！')) return;
+    if (!confirm('再次确认：真的要删除全部数据吗？')) return;
+    localStorage.removeItem(Store.KEY);
+    Store.init();
+    Nav.updateBadge();
+    Utils.toast('所有数据已清除');
+    PageRouter.renderSettings();
+    setTimeout(() => Nav.go('overview'), 500);
   }
 };
 
@@ -604,7 +768,136 @@ const PageRouter = {
       case 'zhengzhi':  this.renderZhengzhi(); break;
       case 'shenlun':   this.renderShenlun(); break;
       case 'overview':  this.renderOverview(); break;
+      case 'settings':  this.renderSettings(); break;
     }
+  },
+
+  // ===== 设置页面 =====
+  renderSettings() {
+    const data = Store.get();
+    const dataSize = new Blob([JSON.stringify(data)]).size;
+    const taskCount = (data.tasks || []).length;
+    const wrongCount = (data.wrongQuestions || []).length;
+    const favCount = (data.favorites || []).length;
+    const cd = Store.getCountdown();
+
+    document.getElementById('page-settings').innerHTML = `
+      <div class="page-header">
+        <div class="page-title">设置</div>
+        <div class="page-subtitle">数据管理 · 导入导出 · 应用信息</div>
+      </div>
+
+      <!-- 数据概览 -->
+      <div class="card">
+        <div class="card-title">📊 数据概览</div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+          <div style="text-align:center;padding:12px;background:var(--pink-50);border-radius:var(--radius-s);">
+            <div style="font-size:24px;font-weight:700;color:var(--pink-500);">${taskCount}</div>
+            <div style="font-size:12px;color:var(--text-3);">备考任务</div>
+          </div>
+          <div style="text-align:center;padding:12px;background:var(--pink-50);border-radius:var(--radius-s);">
+            <div style="font-size:24px;font-weight:700;color:var(--pink-500);">${wrongCount}</div>
+            <div style="font-size:12px;color:var(--text-3);">错题收录</div>
+          </div>
+          <div style="text-align:center;padding:12px;background:var(--pink-50);border-radius:var(--radius-s);">
+            <div style="font-size:24px;font-weight:700;color:var(--pink-500);">${favCount}</div>
+            <div style="font-size:12px;color:var(--text-3);">申论收藏</div>
+          </div>
+          <div style="text-align:center;padding:12px;background:var(--pink-50);border-radius:var(--radius-s);">
+            <div style="font-size:24px;font-weight:700;color:var(--pink-500);">${(dataSize/1024).toFixed(1)}<span style="font-size:14px;">KB</span></div>
+            <div style="font-size:12px;color:var(--text-3);">数据大小</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据导出 -->
+      <div class="card">
+        <div class="card-title">📤 导出数据</div>
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:14px;line-height:1.7;">
+          将所有备考数据（任务、错题、收藏、倒计时、学习记录）导出为 JSON 文件，保存到手机或分享到其他设备。
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="DataManager.exportData()">⬇ 导出全部数据</button>
+          <button class="btn btn-outline" onclick="DataManager.exportTasks()">📋 仅导出任务</button>
+        </div>
+      </div>
+
+      <!-- 数据导入 -->
+      <div class="card">
+        <div class="card-title">📥 导入数据</div>
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:14px;line-height:1.7;">
+          从之前导出的 JSON 文件恢复数据。<b style="color:var(--pink-500);">注意：导入会覆盖当前同类型数据</b>，建议先导出备份。
+        </p>
+        <button class="btn btn-primary" onclick="DataManager.triggerImport()">⬆ 选择文件导入</button>
+        <div id="importResult" style="margin-top:12px;"></div>
+      </div>
+
+      <!-- 倒计时管理 -->
+      <div class="card">
+        <div class="card-title">⏱ 考试倒计时</div>
+        ${cd ? `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--pink-50);border-radius:var(--radius-s);margin-bottom:12px;">
+            <div>
+              <div style="font-size:15px;font-weight:600;color:var(--text-1);">${cd.name}</div>
+              <div style="font-size:12px;color:var(--text-3);">考试日期：${cd.targetDate}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:28px;font-weight:700;color:var(--pink-500);">${Math.max(0, Math.ceil((new Date(cd.targetDate) - new Date()) / 86400000))}</div>
+              <div style="font-size:11px;color:var(--text-3);">天</div>
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="CountdownModal.open()">修改倒计时</button>
+          <button class="btn btn-ghost btn-sm" onclick="DataManager.clearCountdown()">清除</button>
+        ` : `
+          <p style="font-size:13px;color:var(--text-3);margin-bottom:12px;">尚未设定考试倒计时</p>
+          <button class="btn btn-outline btn-sm" onclick="CountdownModal.open()">⏱ 设定倒计时</button>
+        `}
+      </div>
+
+      <!-- 学习目标设置 -->
+      <div class="card">
+        <div class="card-title">🎯 学习目标</div>
+        <div class="form-group">
+          <label class="form-label">月学习目标（小时）</label>
+          <div style="display:flex;gap:8px;">
+            <input type="number" class="input" id="monthGoalInput" value="${data.monthGoal || 120}" min="1">
+            <button class="btn btn-outline" onclick="DataManager.saveMonthGoal()">保存</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">每日背诵目标（条目）</label>
+          <div style="display:flex;gap:8px;">
+            <input type="number" class="input" id="reciteGoalInput" value="${data.reciteGoal || 20}" min="1">
+            <button class="btn btn-outline" onclick="DataManager.saveReciteGoal()">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 清除数据 -->
+      <div class="card" style="border-color:#fcc;">
+        <div class="card-title" style="color:var(--red);">⚠️ 危险操作</div>
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:14px;line-height:1.7;">
+          清除所有数据将删除你的全部任务、错题、收藏和学习记录，<b>此操作不可撤销</b>！建议先导出备份。
+        </p>
+        <button class="btn btn-ghost" style="color:var(--red);border:1px solid var(--red);" onclick="DataManager.clearAllData()">🗑 清除所有数据</button>
+      </div>
+
+      <!-- 关于 -->
+      <div class="card">
+        <div class="card-title">ℹ️ 关于</div>
+        <div style="font-size:13px;color:var(--text-2);line-height:1.8;">
+          <div><b>应用名称：</b>主旋律的工作台</div>
+          <div><b>版本：</b>1.0.0</div>
+          <div><b>定位：</b>公考专属备考工作台</div>
+          <div><b>数据存储：</b>本地浏览器存储（换设备需导出导入）</div>
+          <div><b>上次同步：</b>${data.lastSync ? new Date(data.lastSync).toLocaleString('zh-CN') : '未同步'}</div>
+        </div>
+      </div>
+    `;
+
+    // 绑定导入文件选择器事件
+    const fileInput = document.getElementById('importFileInput');
+    if (fileInput) fileInput.onchange = (e) => DataManager.handleImport(e);
   },
 
   // ===== 首页：全局总览 =====
