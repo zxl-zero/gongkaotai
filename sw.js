@@ -1,5 +1,5 @@
 // 主旋律的工作台 - Service Worker
-const CACHE_NAME = 'gongkaotai-v4';
+const CACHE_NAME = 'gongkaotai-v5';
 const ASSETS = [
   './',
   './index.html',
