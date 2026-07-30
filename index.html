@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <meta name="theme-color" content="#FF8CB4">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="主旋律">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="description" content="公考专属备考工作台 - 高效备考，一战上岸">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+  <title>主旋律的工作台</title>
+</head>
+<body>
+
+  <!-- ===== 侧边导航栏 ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-icon">公</div>
+      <div class="sidebar-title">主旋律的工作台</div>
+    </div>
+    <div class="sidebar-toggle" id="sidebarToggle">
+      <span class="arrow">‹</span>
+    </div>
+    <nav class="nav-list" id="navList"></nav>
+  </aside>
+
+  <!-- 移动端遮罩 -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ===== 主内容区 ===== -->
+  <div class="main">
+    <!-- 移动端顶栏 -->
+    <header class="mobile-header">
+      <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+      <div class="mobile-header-title" id="mobileHeaderTitle">全局总览</div>
+    </header>
+
+    <!-- 内容滚动区 -->
+    <main class="content">
+      <!-- 1. 言语理解（行测首页） -->
+      <div class="page" id="page-home"></div>
+      <!-- 2. 判断推理 -->
+      <div class="page" id="page-panduan"></div>
+      <!-- 3. 数量关系 -->
+      <div class="page" id="page-shuliang"></div>
+      <!-- 4. 资料分析 -->
+      <div class="page" id="page-ziliao"></div>
+      <!-- 5. 政治&常识 -->
+      <div class="page" id="page-zhengzhi"></div>
+      <!-- 6. 申论·综应 -->
+      <div class="page" id="page-shenlun"></div>
+      <!-- 7. 全局总览 -->
+      <div class="page active" id="page-overview"></div>
+    </main>
+  </div>
+
+  <!-- ===== 任务列表弹窗 ===== -->
+  <div class="modal-overlay" id="taskListModal">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header">
+        <div class="modal-title">任务管理</div>
+        <button class="modal-close" data-modal="taskListModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="tabs" id="taskListTabs" style="margin-bottom:14px;">
+          <div class="tab active" data-filter="today">今日待办</div>
+          <div class="tab" data-filter="pending">未完成</div>
+          <div class="tab" data-filter="overdue">逾期</div>
+          <div class="tab" data-filter="completed">已完成</div>
+        </div>
+        <div id="taskListModalContent"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal="taskListModal">关闭</button>
+        <button class="btn btn-primary" onclick="PageRouter.closeTaskListModal();TaskModal.open();">+ 新建任务</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 倒计时设置弹窗 ===== -->
+  <div class="modal-overlay" id="countdownModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">⏱ 设定考试倒计时</div>
+        <button class="modal-close" data-modal="countdownModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">考试名称</label>
+          <input type="text" class="input" id="cdName" placeholder="如：2026年国考、2026年省考">
+        </div>
+        <div class="form-group">
+          <label class="form-label">考试日期</label>
+          <input type="date" class="input" id="cdDate">
+        </div>
+        <p style="font-size:12px;color:var(--text-3);">设定后会在总览页顶部显示距离考试的天数，每天激励自己</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="CountdownModal.clear()">清除</button>
+        <button class="btn btn-ghost" data-modal="countdownModal">取消</button>
+        <button class="btn btn-primary" onclick="CountdownModal.submit()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 任务创建/编辑弹窗 ===== -->
+  <div class="modal-overlay" id="taskModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="taskModalTitle">新建备考任务</div>
+        <button class="modal-close" data-modal="taskModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="taskEditId">
+        <div class="form-group">
+          <label class="form-label">任务名称</label>
+          <input type="text" class="input" id="taskName" placeholder="如：行测资料分析速算练习">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">学习时长（分钟）</label>
+            <input type="number" class="input" id="taskDuration" value="60" min="5" step="5">
+          </div>
+          <div class="form-group">
+            <label class="form-label">截止时间</label>
+            <input type="datetime-local" class="input" id="taskDeadline">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">考试科目标签</label>
+            <select class="select" id="taskSubject">
+              <option value="">请选择</option>
+              <option value="言语理解">言语理解</option>
+              <option value="判断推理">判断推理</option>
+              <option value="数量关系">数量关系</option>
+              <option value="资料分析">资料分析</option>
+              <option value="政治理论">政治理论</option>
+              <option value="常识">常识</option>
+              <option value="申论">申论</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">任务分类</label>
+            <select class="select" id="taskStatus">
+              <option value="today">今日待办</option>
+              <option value="pending">未完成任务</option>
+              <option value="overdue">延期待办</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">学习备注</label>
+          <textarea class="textarea" id="taskNotes" placeholder="记录学习要点、重点内容等"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal="taskModal">取消</button>
+        <button class="btn btn-primary" id="taskSubmit">保存任务</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
